@@ -7,9 +7,6 @@
 #   l99 start <setup>
 # which runs the 'base' profile by default.
 
-# version must be a string - need 3.8 for profiles
-version: '3.8'
-
 services:
   adapter:
     profiles:
