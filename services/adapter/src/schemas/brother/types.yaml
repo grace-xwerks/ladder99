@@ -1,0 +1,18 @@
+# types
+# named value sets usable in outputs.yaml value expressions.
+#
+# eg once the M05 modal group's coding is confirmed on D00 you can write:
+#   - key: spindle
+#     value: SPINDLE[<m_spindle>] || 'UNAVAILABLE'
+
+types:
+  AVAILABILITY:
+    online: AVAILABLE
+    offline: UNAVAILABLE
+
+  # placeholder - confirm the actual group codes at the machine before using.
+  # left here as the shape to fill in, not as fact.
+  SPINDLE:
+    0: 'OFF'
+    1: FORWARD
+    2: REVERSE

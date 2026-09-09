@@ -1,103 +1,99 @@
 # docker image build instructions
 #
-# l99 build adapter 0.8.1-arm
+# l99 build adapter
 #
-# keep in synch with all Dockerfiles - adapter, meter, recorder, relay.
+# keep in synch with all Dockerfiles - adapter, meter, recorder, relay, simulator.
 #
-# see https://stackoverflow.com/questions/30043872/docker-compose-node-modules-not-present-in-a-volume-after-npm-install-succeeds
-# and https://snyk.io/blog/10-best-practices-to-containerize-nodejs-web-applications-with-docker/
+# see https://snyk.io/blog/10-best-practices-to-containerize-nodejs-web-applications-with-docker/
 
 # ------------------------------------------------------------------------
+# base image
+# ------------------------------------------------------------------------
+#
+# this used to be `FROM ubuntu:22.10`, chosen in 2022 because 22.04 LTS only
+# packaged node v12 while 22.10 had v18. that traded an LTS base for a newer
+# node and lost: ubuntu 22.10 (kinetic) went EOL in july 2023 and its archives
+# moved to old-releases.ubuntu.com, so `apt-get update` returned 404 for every
+# repository and the build died on `Unable to locate package nodejs`.
+#
+# the node images solve the original problem directly - node is already there,
+# at a version we pin, on a debian base that is still supported. the -bookworm
+# build stage ships python3 and build-essential, which the native modules
+# (usb, node-hid) need; the -bookworm-slim runtime stage does not carry them.
+#
+# pin to the patch level so a rebuild six months from now produces the same
+# thing. bump deliberately, not by drifting on a floating tag.
+ARG NODE_VERSION=22.23.2
 
-# node
-# always use even numbers with Node because those are the 
-# long-term support (LTS) versions
-# pinning all the way to the patch level of the version ensures consistent, 
-# reproducible builds and tests.
-# The slim versions are generally just a good way to reduce bloat.
-# Users should look to upgrade to v16 as soon as possible. The currently active 
-# LTS branch, v14, will be maintained through the end of April 2023.
-# The current Node.js v15 release will remain supported until June 1st, 2021. 
-# FROM node:15  # huge 350mb compressed image
-# FROM node:15-alpine  # smallest, but harder to work with
-# FROM node:15.14-slim
-# lts is currently node 16, maintained until April 2024.
-# FROM node:lts-slim AS build
+# ------------------------------------------------------------------------
+# first stage - build dependencies
+# ------------------------------------------------------------------------
 
-# but need python also for dymo.js driver - usb module compilation -
-# can't use slim version because need `make` etc.
-# see https://hub.docker.com/r/nikolaik/python-nodejs
-# this nowork because no ARM image available -
-# FROM nikolaik/python-nodejs:python3.9-nodejs16
+FROM node:${NODE_VERSION}-bookworm AS build
 
-# ubuntu includes python and has images for ARM also
-# see https://hub.docker.com/_/ubuntu
-# FROM ubuntu:21.04 AS build
-# 22.04 is current lts release
-# FROM ubuntu:22.04 AS build
-# but 22.04 only has package for node v12.22, so switch to 22.10 which has v18.7
-FROM ubuntu:22.10 AS build
+# prevent apt install getting stuck on timezone info
+ENV DEBIAN_FRONTEND=noninteractive
 
-# prevent apt install from getting stuck at timezone info
-# see https://askubuntu.com/questions/909277/avoiding-user-interaction-with-tzdata-when-installing-certbot-in-a-docker-contai
-ENV DEBIAN_FRONTEND=noninteractive 
-
-# need these for dymo driver else get errors -
-# error: libudev.h: No such file or directory
-# error: libusb-1.0.so.0: cannot open shared object file: No such file or directory
-# https://askubuntu.com/questions/852337/libusb-1-0-so-0-error
-# got prebuild-install WARN install No prebuilt binaries found (target=3 runtime=napi arch=arm64 libc= platform=linux)
-# see https://github.com/node-hid/node-hid#compiling-from-source
-# note: if apt-get update fails on raspberry pi with something about http and returns 100,
-# there might be an issue with libseccomp2 on the host system. 
-# you can upgrade it with the following -
-#   sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 04EE7237B7D453EC 648ACFD622F3D138
-#   echo "deb http://deb.debian.org/debian buster-backports main" | sudo tee -a /etc/apt/sources.list.d/buster-backports.list
-#   sudo apt update
-#   sudo apt install -t buster-backports libseccomp2
-# see https://www.reddit.com/r/Readarr/comments/ixajkk/working_docker_image_for_raspberry_pi_os_buster/glh774f/
-# added iputils-ping so can use ping from within container for testing
-# added net-tools so can use route for testing
-#. add openssl for node-opc package?
-RUN apt-get update -y && apt-get install --fix-missing -y nodejs npm libudev-dev \
-  libusb-1.0-0 libusb-1.0-0-dev pkg-config iputils-ping net-tools
+# headers needed to compile the usb and node-hid modules, which the dymo scale
+# driver uses. without them node-gyp fails with 'libudev.h: No such file or
+# directory'. see https://github.com/node-hid/node-hid#compiling-from-source
+RUN apt-get update \
+  && apt-get install --no-install-recommends -y \
+    libudev-dev \
+    libusb-1.0-0-dev \
+    pkg-config \
+    python3 \
+  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/app
-ENV NODE_ENV production
+ENV NODE_ENV=production
 COPY package.json /usr/app/
 
-# install javascript dependencies
-
-# # first increase the timeout from 30 secs to 2mins to handle slow connections.
-# RUN npm config set fetch-retry-maxtimeout 120000
-
-# # generate package-lock from package.json, but don't create node_modules.
-# RUN npm install --package-lock-only --omit=dev
-
-# # fix vulnerabilities where able and update package-lock.json.
-# # normally audit fix runs a full install under the hood, but we don't want that yet.
-# #. 2023-01-06 this fails for mssql package both with and without '--force' - comment out.
-# # RUN npm audit fix --force --package-lock-only --omit=dev
-
-# # install deterministically from package-lock.json to node_modules.
-# # audit=false means don't submit packages to registry.
-# # see https://docs.npmjs.com/cli/v8/commands/npm-ci
-# RUN npm clean-install --audit=false --omit=dev
-
-# combine above commands to make smaller image.
-#. note that we're leaving out npm audit because can't get past the mssql package audit.
+# install javascript dependencies.
+#
+# raise the fetch timeout from 30s to 2m for slow shop connections, generate a
+# lockfile from package.json, then install deterministically from it.
+#
+# note: `npm audit fix` is deliberately NOT run here. it resolves differently
+# depending on when you build, so two builds of the same commit could ship
+# different dependency trees - and it is free to bump a major version, which is
+# how a build starts failing without anyone changing a line. audit separately,
+# in daylight, and commit the result.
 RUN npm config set fetch-retry-maxtimeout 120000 \
   && npm install --package-lock-only --omit=dev \
   && npm clean-install --audit=false --omit=dev
 
+# ------------------------------------------------------------------------
+# second stage - runtime
+# ------------------------------------------------------------------------
+
+FROM node:${NODE_VERSION}-bookworm-slim
+ENV NODE_ENV=production
+
+# runtime shared libraries for the native modules built above, plus ping and
+# route - worth the few hundred kb, because the first question about an adapter
+# that cannot reach a control is always whether the container can see it.
+RUN apt-get update \
+  && apt-get install --no-install-recommends -y \
+    libusb-1.0-0 \
+    libudev1 \
+    iputils-ping \
+    net-tools \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /usr/app
+
+# package.json is needed at runtime so node honours "type": "module"
+COPY package.json /usr/app/package.json
+COPY --from=build /usr/app/node_modules /usr/app/node_modules
 COPY src /usr/app/src
 
-#. this causes read/write errors on cookie files because they're already there as root
-# USER node
+#. runs as root - the adapter writes cookie files into a mounted volume that is
+#  already owned by root, so USER node fails on read/write. fix the volume
+#  ownership and this can drop privileges like relay/meter/recorder do.
 
-# base command - can pass params with CMD [?]
-# note: When you run an image that uses the exec form (ie an array), 
-# Docker will run the command as is, without a wrapper process. 
+# note: When you run an image that uses the exec form (ie an array),
+# Docker will run the command as is, without a wrapper process.
 # Your Node.js application will be the first and only running process with PID 1.
 # be sure to run it with --init flag, so can ctrl-c out of it.
 ENTRYPOINT ["node", "/usr/app/src/index.js"]

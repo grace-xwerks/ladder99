@@ -51,7 +51,11 @@ export class Observations extends Data {
     // get history records to write to db
     // observations is now [{ device_id, dataitem_id, tag, dataItemId, name, timestamp, value }, ...]
     //. records is
-    const records = getHistoryRecords(this.observations)
+    // note: getHistoryRecords became a method of this class in 2024-03 (upstream
+    // commit 2286b342). the spec was updated to call it on the instance but this
+    // call site was not, so the relay threw ReferenceError on its first write and
+    // docker restarted it forever - ie the pipeline could not store anything.
+    const records = this.getHistoryRecords(this.observations)
 
     // write all records to db
     return await db.addHistory(records)

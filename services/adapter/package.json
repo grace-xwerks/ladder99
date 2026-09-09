@@ -8,7 +8,9 @@
   "license": "Apache2.0",
   "scripts": {
     "test1": "node src/test.js",
-    "test": "node src/common/lib-test.js"
+    "test": "node src/common/lib-test.js",
+    "test:brother": "node src/drivers/brother/protocol-test.js && node src/drivers/brother/driver-test.js",
+    "probe:brother": "node src/drivers/brother/probe.js"
   },
   "dependencies": {
     "js-yaml": "^4.0.0",

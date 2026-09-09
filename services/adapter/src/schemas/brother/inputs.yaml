@@ -1,0 +1,153 @@
+# inputs
+# what the brother.js driver polls off a speedio control, and how to decode it.
+#
+# ---------------------------------------------------------------------------
+# READ THIS BEFORE TRUSTING ANY FIELD BELOW
+# ---------------------------------------------------------------------------
+# the line symbols and item names here come from the DataMap in
+# Lathejockey81/BrotherAdapter (MIT, 2018), which targeted B00/C00 controls.
+# grace runs CNC-D00. the framing is expected to have carried forward; the
+# FIELD ORDER WITHIN EACH LINE IS NOT VERIFIED on D00 by anyone here.
+#
+# three lines below (L01, G01, M01) have their full field order from that
+# reference and are marked accordingly. the position/status lines are scaffold
+# only - the item names are real, their order is a guess, and they are left
+# commented out rather than shipped wrong.
+#
+# workflow:
+#   1. node src/drivers/brother/probe.js --host cnc23 --out ./probe-cnc23
+#   2. read the line symbols and field counts it prints
+#   3. fill in / correct the maps below
+#   4. restart the adapter
+#
+# a value that decodes wrong is worse than one that is missing - it will sit on
+# a dashboard looking like a measurement. leave things commented until probed.
+# ---------------------------------------------------------------------------
+
+poll:
+  defaultInterval: 2000 # ms - the control is a cnc, not an api; don't hammer it
+  failuresBeforeUnavailable: 3 # missed polls before the device goes UNAVAILABLE
+  connectTimeout: 4000 # ms
+  readTimeout: 6000 # ms of silence mid-response
+  connectRetries: 2 # attempts per poll; the next poll is the real retry
+
+files:
+  # -------------------------------------------------------------------------
+  # PDSP - production data screen
+  # -------------------------------------------------------------------------
+  # the richest single file: modal state, positions, feedrate and overrides,
+  # tool and pot numbers, door interlocks.
+  - name: PDSP
+    interval: 2000
+    lines:
+      # --- L01: language / display mode. field order verified from reference.
+      - symbol: L01
+        items:
+          - name: language
+            type: enum
+            values:
+              0: NC
+              1: CONVERSATION
+
+      # --- G01: active G-code per modal group. order verified from reference.
+      # these are the modal group values, not raw G numbers - eg the G00 group
+      # tells you rapid vs feed vs arc. useful for cutting-vs-positioning.
+      - symbol: G01
+        items:
+          - { name: g_motion, type: number } # G00 group
+          - { name: g_plane, type: number } # G17 group
+          - { name: g_stored_stroke, type: number } # G22 group
+          - { name: g_cutter_comp, type: number } # G40 group
+          - { name: g_length_comp, type: number } # G49 group
+          - { name: g_scaling, type: number } # G50 group
+          - { name: g_mirror, type: number } # G50.1 group
+          - { name: g_workoffset, type: number } # G54 group
+          - { name: g_path_mode, type: number } # G64 group
+          - { name: g_rotation, type: number } # G69 group
+          - { name: g_canned, type: number } # G80 group
+          - { name: g_abs_inc, type: number } # G90 group
+          - { name: g_feed_mode, type: number } # G94 group
+          - { name: g_spindle_mode, type: number } # G97 group
+          - { name: g_return_mode, type: number } # G98 group
+
+      # --- M01: active M-code per modal group. order verified from reference.
+      # only the first few are mapped by name; the rest of the reference's 31
+      # groups are machine-option specific and worth confirming per machine.
+      - symbol: M01
+        items:
+          - { name: m_spindle, type: number } # M05 group - spindle state
+          - { name: m_coolant, type: number } # M09 group - coolant state
+          - { name: m_subprogram, type: number } # M97 group
+          # remaining groups from the reference, in order, unmapped:
+          # M141 M221 M222 M223 M224 M230 M239 M252 M269 M270 M290 M305
+          # M401 M403 M405 M407 M409 M419 M431 M435 M441 M443 M445
+          # M481 M483 M485 M487 M495
+
+      # --- X01: axis data. SCAFFOLD - order unverified, left off deliberately.
+      # the reference carries these item names for the position block:
+      #   Absolute coordinate position   (X, Y, Z, 4..8, P1..P4)
+      #   Machine coordinate position    (same axes)
+      #   Relative coordinate position   (same axes)
+      #   Remaining distance             (same axes)
+      #   Feedrate, Feedrate override, Rapid traverse override
+      #   Next tool No., Pot No.
+      #   Door interlock, Inner door, Outer door, Inner pallet
+      #
+      # a U500Xd1-5AX has X Y Z plus two rotaries, so expect 5 populated axes
+      # and padding beyond. uncomment and correct against probe output:
+      #
+      # - symbol: X01
+      #   items:
+      #     - { name: abs_x, type: number, decimals: 4 }
+      #     - { name: abs_y, type: number, decimals: 4 }
+      #     - { name: abs_z, type: number, decimals: 4 }
+      #     - { name: abs_b, type: number, decimals: 4 }
+      #     - { name: abs_c, type: number, decimals: 4 }
+      #     - { name: feedrate, type: number, decimals: 1 }
+      #     - { name: feed_ovr, type: number, decimals: 0 }
+      #     - { name: rapid_ovr, type: number, decimals: 0 }
+      #     - { name: tool_next, type: number }
+      #     - { name: pot, type: number }
+      #     - { name: door, type: number }
+
+  # -------------------------------------------------------------------------
+  # WKCNTR - work counter
+  # -------------------------------------------------------------------------
+  # part counts. the numerator of every OEE figure, and the single most valuable
+  # file on the control. no field map exists for it anywhere we can find, so it
+  # is captured raw until probed - the value lands in cache as a string and is
+  # NOT sent to the agent (no entry in outputs.yaml), which is what you want
+  # while you are still working out what the columns mean.
+  - name: WKCNTR
+    interval: 10000
+    raw: true
+    rawKey: wkcntr_raw
+
+  # -------------------------------------------------------------------------
+  # ALARM - active alarms
+  # -------------------------------------------------------------------------
+  # maps onto an MTConnect CONDITION once the severity/code columns are known.
+  # raw until probed.
+  - name: ALARM
+    interval: 5000
+    raw: true
+    rawKey: alarm_raw
+
+  # -------------------------------------------------------------------------
+  # optional extras - enable once the three above are working
+  # -------------------------------------------------------------------------
+  # - name: PRD1        # production data
+  #   interval: 30000
+  #   raw: true
+  # - name: MAINTC      # maintenance counters - service intervals vs real hours
+  #   interval: 300000
+  #   raw: true
+  # - name: ATCTL       # ATC tool table - tool life, joins to the tool crib
+  #   interval: 60000
+  #   raw: true
+  # - name: MCRNI#      # macro variables 1..9,0 - probing results
+  #   interval: 60000
+  #   raw: true
+  # - name: OPLOG       # operation log - downtime reasons
+  #   interval: 60000
+  #   raw: true

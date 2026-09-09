@@ -1,0 +1,45 @@
+# outputs
+# cache keys -> shdr strings sent to the agent.
+#
+# only keys listed here reach the agent. that is deliberate: the raw discovery
+# captures (wkcntr_raw, alarm_raw) are set in the cache by the driver but have
+# no output here, so they stay local for probing instead of pushing multi-kb
+# strings through SHDR every poll. add them once they are mapped to real fields.
+#
+# the shdr id is `${deviceId}-${key}`, eg 'cnc23-avail'.
+
+outputs:
+  # --- always present, produced by the driver itself, not by a field map
+  - key: avail
+
+  - key: cond
+    category: CONDITION
+
+  # --- modal state (PDSP / L01, G01, M01) - field order verified from reference
+  - key: language
+
+  # motion mode - the most useful single modal group for cutting vs positioning
+  - key: g_motion
+  - key: g_workoffset
+  - key: g_canned
+  - key: g_feed_mode
+
+  # spindle and coolant modal groups
+  - key: m_spindle
+  - key: m_coolant
+
+  # --- axis / status block (PDSP / X01)
+  # commented out to match inputs.yaml - uncomment in step with the field map,
+  # not before. an output whose cache key is never set just sends UNAVAILABLE
+  # forever, which looks like a broken machine rather than an unfinished map.
+  #
+  # - key: feedrate
+  # - key: feed_ovr
+  # - key: rapid_ovr
+  # - key: tool_next
+  # - key: pot
+  # - key: abs_x
+  # - key: abs_y
+  # - key: abs_z
+  # - key: abs_b
+  # - key: abs_c
