@@ -1,0 +1,105 @@
+# docker-compose overrides for the Grace Engineering setup.
+# overrides and extends the values in ladder99/services/docker-compose.yaml.
+#
+# the parent compose file defines EVERY service in the pipeline, each behind its
+# own profile, so nothing starts unless something asks for it. adding
+#   profiles:
+#     - base
+# to a service here opts it in to the 'base' profile, which is what
+#   l99 start
+# runs by default. so this file is the answer to "what does this setup actually
+# need to run?" - keep the unused services commented rather than deleted, so the
+# list stays a record of what was considered.
+#
+# see shell/commands/compose - it stacks
+#   services/docker-compose.yaml
+#   services/docker-compose.prod.yaml   (unless --build)
+#   setups/$SETUP/services/docker-compose.yaml   (this file)
+# and exports SETUP so the parent file's ../setups/$SETUP volume mounts resolve here.
+
+services:
+  # ---------------------------------------------------------------------------
+  # pipeline
+  # ---------------------------------------------------------------------------
+
+  # polls the local host os (cpu, temp, disk) and sends SHDR to the agent.
+  # see the adapter section of ../setup.yaml.
+  adapter:
+    profiles:
+      - base
+
+  # the local MTConnect agent, serving only the 'host' device.
+  # the six Mazak demo agents are remote and are read directly by the relay -
+  # they do not need anything here.
+  # config comes from ../volumes/agent/{agent.cfg,agent.xml}.
+  agent:
+    profiles:
+      - base
+
+  # reads the local agent AND the six Mazak demo agents over http,
+  # and writes observations to postgres. see the relay section of ../setup.yaml.
+  relay:
+    profiles:
+      - base
+
+  # timescaledb - stores the structure and the time-series history.
+  postgres:
+    profiles:
+      - base
+    # the parent compose file suggests this override: match the db timezone to
+    # the setup's client.timezone, so time_bucket and any local-time reporting
+    # agree with the autoprune schedule and the shop clock.
+    # Grace is in Memphis, Michigan - US Eastern.
+    command: postgres -c 'max_connections=50' -c 'timezone=America/Detroit'
+
+  # dashboards. published on $GRAFANA_PORT (3000 - see ../.env-example).
+  # config comes from ../volumes/grafana/etc/.
+  grafana:
+    profiles:
+      - base
+
+  # ---------------------------------------------------------------------------
+  # ops uis
+  # ---------------------------------------------------------------------------
+  # these are for us, not for the shop floor. all are unauthenticated on the
+  # local network, so don't expose this box to the internet without a proxy.
+
+  # docker logs in a browser - http://localhost:8080
+  dozzle:
+    profiles:
+      - base
+
+  # docker container management - http://localhost:9000
+  portainer:
+    profiles:
+      - base
+
+  # postgres admin console - http://localhost:5050
+  pgadmin:
+    profiles:
+      - base
+
+  # ---------------------------------------------------------------------------
+  # not enabled (yet)
+  # ---------------------------------------------------------------------------
+
+  #. metrics calculation (availability, counts, rates). turn this on together
+  #. with the meter section of ../setup.yaml - it needs a real shift schedule,
+  #. which we won't have until Grace machines are the data source.
+  # meter:
+  #   profiles:
+  #     - base
+
+  #. scheduled db backup to local disk and s3. nothing here is irreplaceable
+  #. while the source is a public demo agent - enable this before Grace machines
+  #. become the source of truth, and set the AWS keys in .env first.
+  # backup:
+  #   profiles:
+  #     - base
+
+  #. the agent image's built-in cnc simulator, on port 5001. not needed - we have
+  #. six real agents to read from. useful if mtconnect.mazakcorp.com is down and
+  #. you need moving data to develop against.
+  # simulation:
+  #   profiles:
+  #     - base

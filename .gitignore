@@ -25,5 +25,9 @@ desktop.ini
 
 setups/*
 !setups/example/
+# grace's own setup is tracked - it is this fork's real configuration.
+# note each setup's own .gitignore still excludes its runtime state
+# (.env, postgres data, grafana var, etc), so only config is committed.
+!setups/grace/
 
 .l99_setup

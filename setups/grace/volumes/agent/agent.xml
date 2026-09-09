@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- device model for the LOCAL agent - Grace Engineering. -->
+<!-- only devices the local adapter feeds over SHDR belong here. the six Mazak -->
+<!-- demo agents are remote agents with their own device models; the relay reads -->
+<!-- them over http and they must NOT be listed here. -->
+
+<!-- the id/name here must agree with setup.yaml and agent.cfg - see the header -->
+<!-- comment in agent.cfg. mismatched ids are the classic Ladder99 failure: the -->
+<!-- agent restarts in a loop, or silently reports UNAVAILABLE forever. -->
+
+<MTConnectDevices xmlns:m="urn:mtconnect.org:MTConnectDevices:2.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns="urn:mtconnect.org:MTConnectDevices:2.0" xsi:schemaLocation="urn:mtconnect.org:MTConnectDevices:2.0 https://schemas.mtconnect.org/schemas/MTConnectDevices_2.0.xsd">
+  <Header creationTime="2021-09-20T00:00:00+00:00" deviceModelChangeTime="2021-09-20T00:00:00+00:00" sender="localhost" instanceId="12345678" bufferSize="131072" assetBufferSize="1000" assetCount="0" version="2.0.0.1" />
+  <Devices>
+
+    <!-- Host -->
+    <!-- id must match that in setup.yaml -->
+    <!-- name must match that in setup.yaml and agent.cfg -->
+    <!-- the uuid was generated from https://www.uuidgenerator.net/ - it just has -->
+    <!-- to be unique and stable; changing it makes the agent look like a new device. -->
+    <Device id="host" name="Host" uuid="233497c5-049e-4a29-bc1d-9ee743909d97">
+      <DataItems>
+        <!-- each DataItem id is '${deviceId}-${key}', where key comes from the -->
+        <!-- schema's outputs.yaml - see services/adapter/src/schemas/host/outputs.yaml. -->
+        <!-- an output with no DataItem here is dropped by the agent (and logged -->
+        <!-- at warn); a DataItem with no output reads UNAVAILABLE forever, which -->
+        <!-- looks like broken hardware rather than an unfinished map. -->
+        <DataItem id="host-avail" name="availability" category="EVENT" type="AVAILABILITY" />
+        <DataItem id="host-cond" name="condition" category="CONDITION" type="SYSTEM" />
+        <DataItem id="host-temp" name="temperature" category="SAMPLE" type="TEMPERATURE" units="CELSIUS" />
+
+        <!-- memory. note the host schema emits memtot/memfree/memused - all three -->
+        <!-- are declared here so none of them are silently dropped. -->
+        <DataItem id="host-memtot" name="memory-total" category="SAMPLE" type="x:MEMORY" subType="x:TOTAL" units="x:BYTES" />
+        <DataItem id="host-memfree" name="memory-free" category="SAMPLE" type="x:MEMORY" subType="x:FREE" units="x:BYTES" />
+        <DataItem id="host-memused" name="memory-used" category="SAMPLE" type="x:MEMORY" subType="x:USED" units="x:BYTES" />
+
+        <!-- cpu. likewise cputot/cpuuser/cpusys. -->
+        <DataItem id="host-cputot" name="cpu-total" category="SAMPLE" type="x:CPU" subType="x:TOTAL" units="x:PERCENTAGE" />
+        <DataItem id="host-cpuuser" name="cpu-user" category="SAMPLE" type="x:CPU" subType="x:USER" units="x:PERCENTAGE" />
+        <DataItem id="host-cpusys" name="cpu-system" category="SAMPLE" type="x:CPU" subType="x:SYSTEM" units="x:PERCENTAGE" />
+
+        <!-- disk -->
+        <DataItem id="host-disksize" name="disk-size" category="SAMPLE" type="x:DISK" subType="x:SIZE" units="x:BYTES" />
+        <DataItem id="host-diskused" name="disk-used" category="SAMPLE" type="x:DISK" subType="x:USED" units="x:BYTES" />
+        <DataItem id="host-diskuse" name="disk-use" category="SAMPLE" type="x:DISK" subType="x:USE" units="x:PERCENTAGE" />
+        <DataItem id="host-diskavail" name="disk-available" category="SAMPLE" type="x:DISK" subType="x:AVAILABLE" units="x:BYTES" />
+
+        <DataItem id="host-osplatform" name="os-platform" category="EVENT" type="OPERATING_SYSTEM" />
+      </DataItems>
+    </Device>
+
+    <!-- Brother Speedio cell - NOT CABLED TO THE NETWORK YET -->
+    <!--. uncomment along with the Brother blocks in setup.yaml and agent.cfg, -->
+    <!--. once machines 879 (cnc23) and 880 (cnc27) are cabled. -->
+    <!--. the DataItem set this schema produces is documented in -->
+    <!--. services/adapter/src/schemas/brother/module.xml - copy from there rather -->
+    <!--. than guessing, and keep inputs.yaml, outputs.yaml and this file in step. -->
+    <!--
+    <Device id="cnc23" name="Brother879" uuid="GENERATE-A-NEW-UUID">
+      <DataItems>
+        <DataItem id="cnc23-avail" name="availability" category="EVENT" type="AVAILABILITY" />
+      </DataItems>
+    </Device>
+
+    <Device id="cnc27" name="Brother880" uuid="GENERATE-A-NEW-UUID">
+      <DataItems>
+        <DataItem id="cnc27-avail" name="availability" category="EVENT" type="AVAILABILITY" />
+      </DataItems>
+    </Device>
+    -->
+
+  </Devices>
+</MTConnectDevices>
