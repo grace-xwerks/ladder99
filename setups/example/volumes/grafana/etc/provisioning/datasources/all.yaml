@@ -40,6 +40,12 @@ datasources:
 
     # fields that will be converted to json and stored in jsonData
     jsonData:
+      # grafana 12 reads the database name from HERE, not from the top-level
+      # `database:` key above - that one is legacy and is now ignored, which
+      # surfaces as 'You do not currently have a default database configured'
+      # on every panel while the datasource itself still tests fine.
+      # both are set so this file works on grafana 10, 11 and 12 alike.
+      database: $PGDATABASE
       graphiteVersion: '1.1'
       tlsAuth: false
       tlsAuthWithCACert: false
@@ -54,4 +60,7 @@ datasources:
     # allow users to edit datasources from the UI
     editable: true
 
-    version: 1
+    # bump this whenever you change anything above - grafana only re-applies a
+    # provisioned datasource when the version INCREASES. edit the file without
+    # bumping and your change is silently ignored on any existing install.
+    version: 2
