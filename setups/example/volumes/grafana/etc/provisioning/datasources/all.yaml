@@ -18,7 +18,10 @@ datasources:
     uid: timescaledb
 
     # access mode. proxy or direct (Server or Browser in the UI). Required
-    access: direct
+    # 'direct' (browser) access was deprecated in grafana 7 and removed later.
+    # it never meant anything for a SQL datasource anyway - postgres is always
+    # queried server-side, by the grafana backend.
+    access: proxy
 
     # url: host.docker.internal:5433 # for macos
     # url: postgres:5432
