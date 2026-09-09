@@ -1,0 +1,258 @@
+# client setup - Grace Engineering
+#
+# there are no Grace machines on the network yet, so this setup is pointed at
+# the six public Mazak demo agents. they are real MTConnect agents serving real
+# (if not ours) machine data, which is enough to build and validate the whole
+# pipeline - adapter -> agent -> relay -> postgres -> grafana - before the first
+# cable is pulled on the shop floor. when the Brother Speedios come online
+# (see the commented block at the end of the adapter section), the demo agents
+# can be dropped or left alongside as a known-good reference.
+
+client:
+  name: Grace Engineering # eg company name - not used yet
+  # used by autoprune (weekly prune runs at local midnight), the adapter jobboss
+  # driver, and meter availability.js.
+  # the shop is in Memphis, Michigan, which is US Eastern - NOT America/Chicago,
+  # which is what setups/example ships and what is easy to copy by accident.
+  # getting this wrong shifts the autoprune window and every local-time shift
+  # boundary by an hour.
+  timezone: America/Detroit
+
+# the Ladder99 Adapter service reads this section to know what devices to poll/subscribe to.
+# each device driver polls or subscribes to data from a device, then sends the
+# data to the Agent via SHDR (a simple key-value text format).
+# the Agent then fits that data into an XML structure as defined by the corresponding
+# agent.xml and agent.cfg files.
+#
+# IMPORTANT: the six Mazak agents are NOT in this section. they are remote
+# agents that already speak MTConnect - the relay reads them over http directly.
+# only devices we have to translate into SHDR ourselves belong here.
+adapter:
+  devices:
+    # the host device polls the host os/cpu for load, temperature, disk for free space, etc.
+    # it is the canary for the box running the pipeline: if Main/Host goes stale,
+    # the problem is this machine, not the network or the far end.
+    - id: host # must match id in agent.xml
+      name: Host # this must match name in agent.cfg and agent.xml
+      # see also device alias in the relay section.
+
+      # each device has one or more "sources", which use drivers that feed data to
+      # a key-value cache - when a key's value changes, the cache sends the new value
+      # to the Agent via SHDR.
+      sources:
+        # the host device driver defines a set of cache outputs in an outputs.yaml file.
+        # these map from the cache keys to the SHDR keys.
+        # it also defines a set of cache inputs in an inputs.yaml file.
+        # the driver itself is a node.js module that polls the host os data.
+        # see services/adapter/src/schemas/host/ and src/drivers/host.js.
+        - driver: host # adapter plugin - manages protocol and payload
+          schema: host # schema defines inputs and outputs with yaml files
+      # each device the adapter connects to has its own tcp port to an agent,
+      # and the agent is configured to listen to that port in agent.cfg.
+      outputs:
+        agent:
+          host: adapter # must match agent.cfg value. 'adapter' here refers to the adapter Docker service.
+          port: 7890 # must match agent.cfg value
+
+    # -------------------------------------------------------------------------
+    # Brother Speedio cell - NOT CABLED TO THE NETWORK YET
+    # -------------------------------------------------------------------------
+    #. uncomment this block (and the matching pieces in volumes/agent/agent.cfg,
+    #. volumes/agent/agent.xml, and the relay section below) once machines 879
+    #. and 880 have a network drop and answer on tcp 10000.
+    #
+    # machines 879 (cnc23) and 880 (cnc27) are Brother Speedio U500Xd1-5AX, a
+    # robot-tended cell with the RobotFlex S2 handler (884 / cnc25) between them.
+    # 884 is NOT a Brother control and will not answer this protocol - it is
+    # deliberately absent here.
+    #
+    # the brother driver and schema already exist in this repo -
+    # see services/adapter/src/schemas/brother/README.md, which documents this
+    # exact shape, the control parameters to set at the panel
+    # (DATA BANK > 6. Communication Parameters > Ethernet / FTP, with
+    # Remote Operation = 1 being the usual miss), and probe.js for confirming
+    # field maps against a real control before trusting them.
+    #
+    # note the ports: the README's example starts at 7890 because it has no host
+    # device. here 7890 is already taken by Host above, so these start at 7891.
+    # EVERY device needs its own tcp port to the agent, and each port needs a
+    # matching Adapters block in agent.cfg.
+    #
+    # - id: cnc23 # must match id in agent.xml
+    #   name: Brother879 # must match name in agent.cfg and agent.xml
+    #   sources:
+    #     - driver: brother
+    #       schema: brother
+    #       connect:
+    #         host: cnc23 # hostname, or an ip once one is measured
+    #         port: 10000 # the Brother control's native protocol port
+    #   outputs:
+    #     agent:
+    #       host: adapter
+    #       port: 7891
+    #
+    # - id: cnc27
+    #   name: Brother880
+    #   sources:
+    #     - driver: brother
+    #       schema: brother
+    #       connect:
+    #         host: cnc27
+    #         port: 10000
+    #   outputs:
+    #     agent:
+    #       host: adapter
+    #       port: 7892 # each device needs its own agent port
+
+# the relay service reads this section to know what agents and devices to read data from.
+# can specify retention periods for data for agent, device, or dataitems - 1w minimum.
+# will clear all unneeded data saturdays at midnight - then vacuum analyze db.
+#
+# warning: DON'T CHANGE THE AGENT OR DEVICE ALIASES ONCE SET (eg Main, Mazak5610,
+# MFMS10-MC2). they are used to synch data with the db, and they are the first
+# two steps of every dataitem path (eg 'Mazak5610/MFMS10-MC2/Controller/...'),
+# so renaming one orphans all its history and breaks every dashboard query and
+# every alert rule that mentions it. no spaces allowed.
+relay:
+  # retention: 1week # can specify data retention period for ALL agents here
+  agents:
+    # -------------------------------------------------------------------------
+    # Main - our local agent
+    # -------------------------------------------------------------------------
+    # this is our main agent, as set up in services/docker-compose.yaml and this
+    # setup's services/docker-compose.yaml overrides. it is fed by the local
+    # adapter over SHDR, and currently carries only the host device (cpu, temp,
+    # disk space, etc). the Brother devices will land here too.
+    - alias: Main # this is an identifier for the agent, used by the db - don't change once set!
+      url: http://agent:5000 # url to the agent - 'agent' is the Docker service name
+      # retention: 1week # agent data retention period - overrides relay retention value
+      # ignore: true # can specify this to turn agent recording on/off for all devices.
+      # the devices section is optional, but lets you assign a friendly alias and retention period, etc.
+      devices:
+        - id: host # device id - must match id in agent.xml
+          alias: Host # device alias is used in path expressions - no spaces
+          retention: 1week # device data retention period - overrides agent retention value
+          # ignore: true # specify this to turn device recording on/off
+          # # can translate, ignore, or set retention for individual dataitems
+          #. better to set here, or in module config?
+          # dataitems:
+          #   - id: host-temp # this is 'deviceId-dataitemId', where dataitemId is defined in agent.xml.
+          #     retention: 1day # dataitem retention period - overrides device retention value
+          #     # ignore: true # ignore this dataitem - overrides device ignore value
+          #     # pathstep: AvailFoo # optional path step translation for this dataitem
+
+        #. uncomment along with the adapter block above, once 879/880 are cabled.
+        #. the device ids here must match the adapter device ids AND the
+        #. <Device id=...> entries in volumes/agent/agent.xml.
+        # - id: cnc23
+        #   alias: Brother879 # used in path expressions - no spaces!
+        #   retention: 1week
+        # - id: cnc27
+        #   alias: Brother880
+        #   retention: 1week
+
+    # -------------------------------------------------------------------------
+    # Mazak public demo agents
+    # -------------------------------------------------------------------------
+    # these are Mazak's publicly reachable demo agents at mtconnect.mazakcorp.com.
+    # they are the only live MTConnect data we have until Grace machines are
+    # networked, and they exercise the relay end to end: probe parsing, path
+    # building, sample/event/condition storage, and the dashboards on top.
+    #
+    # each one serves exactly ONE device, and every one of them calls that device
+    # 'd1' - that is the remote agent's device id, not something we choose, so
+    # `id: d1` repeats below. the ALIAS is what disambiguates them: the relay
+    # keys paths as 'agentAlias/deviceAlias/...', so 'Mazak5610/MFMS10-MC2/...'
+    # and 'Mazak5611/Mazak-5611/...' never collide even though both are 'd1'.
+    # (nor can you fall back on device uuid - several of these agents publish
+    # the SAME uuid as each other. agent alias is the only thing that separates them.)
+    #
+    # the aliases are the machine names Mazak publishes on each port, verified
+    # against /probe. they look inconsistent because they are. the one exception
+    # is 5611, whose device is literally named 'Mazak' - too vague to use as a
+    # path step, so it gets its port appended. leave these as-is; they are the
+    # contract the dashboards are built against.
+    #
+    # note these are public demo endpoints on the open internet: they go down,
+    # they get restarted, and they are not ours. a gap in this data is a fact
+    # about Mazak's demo server, not a fault in this pipeline.
+
+    - alias: Mazak5610 # don't change once set!
+      url: http://mtconnect.mazakcorp.com:5610
+      retention: 1week # agent retention - overrides relay retention value
+      # ignore: true # ignore this agent - overrides relay ignore value
+      devices:
+        - id: d1 # the device id served by the remote agent
+          alias: MFMS10-MC2 # used in path expressions - no spaces!
+          # retention: 1week # device retention - overrides agent retention value
+          # ignore: true # ignore this device - overrides agent ignore value - not yet implemented
+
+    - alias: Mazak5611 # don't change once set!
+      url: http://mtconnect.mazakcorp.com:5611
+      retention: 1week
+      devices:
+        - id: d1
+          alias: Mazak-5611 # the device's own name is just 'Mazak' - port appended to disambiguate
+
+    - alias: Mazak5612 # don't change once set!
+      url: http://mtconnect.mazakcorp.com:5612
+      retention: 1week
+      devices:
+        - id: d1
+          alias: MFMS18-MC1
+
+    - alias: Mazak5701 # don't change once set!
+      url: http://mtconnect.mazakcorp.com:5701
+      retention: 1week
+      devices:
+        - id: d1
+          alias: M12345
+          # note: the d1-Cload and d1-Sload dataitems have the same type signature,
+          # hence the same path. to resolve that, the Relay adds the name or id in
+          # brackets, eg '.../Load[Cload]'. you can override that with pathsteps -
+          # see setups/example/setup.yaml for the worked example. don't set them
+          # here unless a dashboard needs it: a pathstep change rewrites the path,
+          # which is the same kind of history-orphaning rename as an alias change.
+          # dataitems:
+          #   - id: d1-Cload
+          #     pathstep: Load[Index] # override path step for this dataitem
+          #   - id: d1-Sload
+          #     pathstep: Load[Spindle]
+
+    - alias: Mazak5717 # don't change once set!
+      url: http://mtconnect.mazakcorp.com:5717
+      retention: 1week
+      devices:
+        - id: d1
+          alias: M12346
+
+    - alias: Mazak5719 # don't change once set!
+      url: http://mtconnect.mazakcorp.com:5719
+      retention: 1week
+      devices:
+        - id: d1
+          alias: HCN001
+
+# # meter service reads this section, AND the relay section for list of agents and devices.
+# # not enabled for this setup yet - the meter profile is commented out in
+# # services/docker-compose.yaml. turn both on together, or the meter starts with
+# # no work to do. availability needs a real shift schedule, which we don't have
+# # for the Mazak demo machines (they are in Kentucky and run to their own clock),
+# # so leave this until Grace machines are the data source.
+# meter:
+#   defaults:
+#     # availability.js plugin defaults
+#     # gets active = time machine was active in previous time period,
+#     # based on part count changes,
+#     # and available = time is within start/stop schedule.
+#     # note that times have NO Z, ie they're purely local times.
+#     availability:
+#       activePath: Controller/AccumulatedTimeCut # acctimeAuto has auto incrementing time
+#       startTime: '05:00:00'
+#       stopTime: '13:30:00'
+#
+#   # set overrides per agentAlias/deviceAlias/meter here
+#   overrides:
+#     Main/Host:
+#       availability:
+#         ignore: true

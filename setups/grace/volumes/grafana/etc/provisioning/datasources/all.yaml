@@ -1,5 +1,11 @@
 # see https://grafana.com/docs/grafana/latest/administration/provisioning/#data-sources
 
+# grafana reads this on every start and creates/updates the datasource, so the
+# dashboards can reference it by uid without anyone clicking through the ui.
+# the $VARS below are read from the grafana container's environment - see the
+# grafana service in services/docker-compose.yaml, which passes PGHOST etc
+# through from this setup's .env file.
+
 # config file version
 apiVersion: 1
 
@@ -14,7 +20,9 @@ datasources:
     type: postgres
 
     # custom UID which can be used to reference this datasource in
-    # other parts of the configuration, if not specified will be generated automatically
+    # other parts of the configuration, if not specified will be generated automatically.
+    # the dashboards reference this uid, so DON'T CHANGE IT - every panel in
+    # every dashboard json would have to change with it.
     uid: timescaledb
 
     # access mode. proxy or direct (Server or Browser in the UI). Required

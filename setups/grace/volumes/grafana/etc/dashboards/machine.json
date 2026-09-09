@@ -15,7 +15,7 @@
       }
     ]
   },
-  "description": "Grace Engineering - the box Ladder99 runs on: CPU, memory, disk and temperature. Native Grafana panels only (no AngularJS plugins).",
+  "description": "Grace Engineering - single machine detail. Pick a machine with the Machine variable. Native Grafana panels only (no AngularJS plugins).",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -43,7 +43,7 @@
         "type": "grafana-postgresql-datasource",
         "uid": "timescaledb"
       },
-      "description": "Last known value of each host metric.",
+      "description": "Last known value of the headline dataitems for the selected machine.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -173,127 +173,31 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "CPU"
+              "options": "Program"
             },
             "properties": [
               {
-                "id": "unit",
-                "value": "percent"
-              },
-              {
                 "id": "mappings",
                 "value": []
-              },
-              {
-                "id": "decimals",
-                "value": 1
               }
             ]
           },
           {
             "matcher": {
               "id": "byName",
-              "options": "Memory Used"
+              "options": "Part Count"
             },
             "properties": [
               {
-                "id": "unit",
-                "value": "bytes"
-              },
-              {
                 "id": "mappings",
                 "value": []
-              },
-              {
-                "id": "decimals",
-                "value": 1
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Disk Free"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "bytes"
-              },
-              {
-                "id": "mappings",
-                "value": []
-              },
-              {
-                "id": "decimals",
-                "value": 1
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "CPU Temp"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "celsius"
-              },
-              {
-                "id": "mappings",
-                "value": []
-              },
-              {
-                "id": "decimals",
-                "value": 1
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Disk Use"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "percent"
-              },
-              {
-                "id": "mappings",
-                "value": []
-              },
-              {
-                "id": "decimals",
-                "value": 0
-              },
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "green",
-                      "value": null
-                    },
-                    {
-                      "color": "yellow",
-                      "value": 80
-                    },
-                    {
-                      "color": "red",
-                      "value": 90
-                    }
-                  ]
-                }
               }
             ]
           }
         ]
       },
       "gridPos": {
-        "h": 4,
+        "h": 5,
         "w": 24,
         "x": 0,
         "y": 0
@@ -303,7 +207,7 @@
         "colorMode": "value",
         "graphMode": "none",
         "justifyMode": "auto",
-        "orientation": "horizontal",
+        "orientation": "auto",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -314,8 +218,8 @@
         "textMode": "value_and_name",
         "wideLayout": true,
         "text": {
-          "titleSize": 14,
-          "valueSize": 32
+          "titleSize": 11,
+          "valueSize": 22
         }
       },
       "targets": [
@@ -327,11 +231,11 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "-- last known value of each host metric. history_float is used for the\n-- numbers so nothing has to be cast out of text.\nSELECT\n  a.value  AS \"Availability\",\n  cpu.value AS \"CPU\",\n  mem.value AS \"Memory Used\",\n  du.value  AS \"Disk Use\",\n  da.value  AS \"Disk Free\",\n  t.value   AS \"CPU Temp\"\nFROM (VALUES (1)) AS base(x)\nLEFT JOIN LATERAL get_last_value('$device/Availability', '7d') a ON true\nLEFT JOIN LATERAL (\n  SELECT value FROM history_float\n  WHERE path = '$device/CpuTotal' AND time > now() - interval '1 day'\n  ORDER BY time DESC LIMIT 1\n) cpu ON true\nLEFT JOIN LATERAL (\n  SELECT value FROM history_float\n  WHERE path = '$device/MemoryUsed' AND time > now() - interval '1 day'\n  ORDER BY time DESC LIMIT 1\n) mem ON true\nLEFT JOIN LATERAL (\n  SELECT value FROM history_float\n  WHERE path = '$device/DiskUse' AND time > now() - interval '1 day'\n  ORDER BY time DESC LIMIT 1\n) du ON true\nLEFT JOIN LATERAL (\n  SELECT value FROM history_float\n  WHERE path = '$device/DiskAvailable' AND time > now() - interval '1 day'\n  ORDER BY time DESC LIMIT 1\n) da ON true\nLEFT JOIN LATERAL (\n  SELECT value FROM history_float\n  WHERE path = '$device/Temperature' AND time > now() - interval '1 day'\n  ORDER BY time DESC LIMIT 1\n) t ON true",
+          "rawSql": "-- last known value of each headline dataitem for this machine.\n-- the (VALUES (1)) base row guarantees exactly one row even when a lateral\n-- finds nothing, so the panel shows \"-\" instead of going empty.\nSELECT\n  a.value AS \"Availability\",\n  e.value AS \"Execution\",\n  m.value AS \"Mode\",\n  s.value AS \"E-Stop\",\n  p.value AS \"Program\",\n  c.value AS \"Part Count\"\nFROM (VALUES (1)) AS base(x)\nLEFT JOIN LATERAL get_last_value('$device/Availability', '7d')                  a ON true\nLEFT JOIN LATERAL get_last_value('$device/Controller/Path/Execution', '7d')     e ON true\nLEFT JOIN LATERAL get_last_value('$device/Controller/Path/ControllerMode', '7d') m ON true\nLEFT JOIN LATERAL get_last_value('$device/Controller/EmergencyStop', '7d')      s ON true\nLEFT JOIN LATERAL get_last_value('$device/Controller/Path/ProgramMain', '7d')   p ON true\nLEFT JOIN LATERAL get_last_value('$device/Controller/Path/PartCount', '7d')     c ON true",
           "refId": "A"
         }
       ],
-      "title": "Host at a Glance",
+      "title": "$device - Now",
       "type": "stat"
     },
     {
@@ -339,7 +243,233 @@
         "type": "grafana-postgresql-datasource",
         "uid": "timescaledb"
       },
-      "description": "Total CPU load - $device/CpuTotal.",
+      "description": "Availability, controller mode, execution and E-stop for the selected machine, from get_timeline().",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "fillOpacity": 85,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 0,
+            "spanNulls": true
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "ACTIVE": {
+                  "color": "green",
+                  "index": 0,
+                  "text": "Active"
+                },
+                "READY": {
+                  "color": "semi-dark-blue",
+                  "index": 1,
+                  "text": "Ready"
+                },
+                "INTERRUPTED": {
+                  "color": "orange",
+                  "index": 2,
+                  "text": "Interrupted"
+                },
+                "FEED_HOLD": {
+                  "color": "yellow",
+                  "index": 3,
+                  "text": "Feed Hold"
+                },
+                "STOPPED": {
+                  "color": "dark-orange",
+                  "index": 4,
+                  "text": "Stopped"
+                },
+                "PROGRAM_STOPPED": {
+                  "color": "dark-orange",
+                  "index": 5,
+                  "text": "Program Stopped"
+                },
+                "PROGRAM_COMPLETED": {
+                  "color": "blue",
+                  "index": 6,
+                  "text": "Program Complete"
+                },
+                "OPTIONAL_STOP": {
+                  "color": "yellow",
+                  "index": 7,
+                  "text": "Optional Stop"
+                },
+                "WAIT": {
+                  "color": "purple",
+                  "index": 8,
+                  "text": "Wait"
+                },
+                "AVAILABLE": {
+                  "color": "green",
+                  "index": 9,
+                  "text": "Online"
+                },
+                "UNAVAILABLE": {
+                  "color": "#8f8f8f",
+                  "index": 10,
+                  "text": "Offline"
+                },
+                "ARMED": {
+                  "color": "green",
+                  "index": 11,
+                  "text": "Armed"
+                },
+                "TRIGGERED": {
+                  "color": "red",
+                  "index": 12,
+                  "text": "E-STOP"
+                },
+                "AUTOMATIC": {
+                  "color": "green",
+                  "index": 13,
+                  "text": "Auto"
+                },
+                "MANUAL": {
+                  "color": "yellow",
+                  "index": 14,
+                  "text": "Manual"
+                },
+                "MANUAL_DATA_INPUT": {
+                  "color": "orange",
+                  "index": 15,
+                  "text": "MDI"
+                },
+                "SEMI_AUTOMATIC": {
+                  "color": "semi-dark-green",
+                  "index": 16,
+                  "text": "Semi-Auto"
+                },
+                "EDIT": {
+                  "color": "purple",
+                  "index": 17,
+                  "text": "Edit"
+                }
+              }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "color": "#8f8f8f",
+                  "index": 18,
+                  "text": "No data"
+                }
+              }
+            }
+          ],
+          "noValue": "no data in range",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#8f8f8f",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "id": 2,
+      "options": {
+        "alignValue": "left",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "mergeValues": true,
+        "rowHeight": 0.9,
+        "showValue": "auto",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescaledb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "-- get_timeline also returns the value in force at the left edge of the\n-- window, so the row is filled even if nothing changed in range.\nSELECT time, value AS \"Availability\"\nFROM get_timeline('$device/Availability', $__from, $__to, true, '7d')",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescaledb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "-- get_timeline also returns the value in force at the left edge of the\n-- window, so the row is filled even if nothing changed in range.\nSELECT time, value AS \"Controller Mode\"\nFROM get_timeline('$device/Controller/Path/ControllerMode', $__from, $__to, true, '1d')",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescaledb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "-- get_timeline also returns the value in force at the left edge of the\n-- window, so the row is filled even if nothing changed in range.\nSELECT time, value AS \"Execution\"\nFROM get_timeline('$device/Controller/Path/Execution', $__from, $__to, true, '1d')",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescaledb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "-- get_timeline also returns the value in force at the left edge of the\n-- window, so the row is filled even if nothing changed in range.\nSELECT time, value AS \"Emergency Stop\"\nFROM get_timeline('$device/Controller/EmergencyStop', $__from, $__to, true, '7d')",
+          "refId": "D"
+        }
+      ],
+      "title": "Machine State",
+      "type": "state-timeline"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 13
+      },
+      "id": 10,
+      "panels": [],
+      "title": "Speeds & Feeds",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescaledb"
+      },
+      "description": "Path feedrate and per-axis feedrate, converted from the native mm/sec to mm/min.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -353,7 +483,7 @@
             "axisPlacement": "auto",
             "barAlignment": 0,
             "drawStyle": "line",
-            "fillOpacity": 20,
+            "fillOpacity": 10,
             "gradientMode": "none",
             "hideFrom": {
               "legend": false,
@@ -387,116 +517,17 @@
               }
             ]
           },
-          "unit": "percent",
-          "displayName": "${__field.labels.metric}",
-          "min": 0,
-          "max": 100
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 0,
-        "y": 4
-      },
-      "id": 2,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull",
-            "min",
-            "max"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "timescaledb"
-          },
-          "editorMode": "code",
-          "format": "time_series",
-          "rawQuery": true,
-          "rawSql": "SELECT\n  time,\n  'CPU total' AS metric,\n  value\nFROM history_float\nWHERE path = '$device/CpuTotal'\n  AND $__timeFilter(\"time\")\nORDER BY time",
-          "refId": "A"
-        }
-      ],
-      "title": "CPU",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "timescaledb"
-      },
-      "description": "Used and free RAM - $device/MemoryUsed and $device/MemoryFree.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 25,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 4,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": true,
-            "stacking": {
-              "group": "A",
-              "mode": "normal"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "bytes",
-          "displayName": "${__field.labels.metric}",
+          "unit": "suffix:mm/min",
+          "displayName": "${__field.labels.axis}",
           "min": 0
         },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
-        "w": 8,
-        "x": 8,
-        "y": 4
+        "w": 12,
+        "x": 0,
+        "y": 14
       },
       "id": 3,
       "options": {
@@ -524,22 +555,11 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\n  time,\n  'Used' AS metric,\n  value\nFROM history_float\nWHERE path = '$device/MemoryUsed'\n  AND $__timeFilter(\"time\")\nORDER BY time",
+          "rawSql": "-- path feedrate plus each axis feedrate.\n-- native units are MILLIMETER/SECOND, so x60 gives the mm/min a machinist reads.\nSELECT\n  time,\n  coalesce(substring(path, 'Axes/\\w+\\[(\\w+)\\]'), 'Path') AS axis,\n  value * 60                                                AS feedrate\nFROM history_float\nWHERE path LIKE '$device/%Feedrate%'\n  AND path NOT LIKE '%Override%'\n  AND $__timeFilter(\"time\")\nORDER BY time",
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "timescaledb"
-          },
-          "editorMode": "code",
-          "format": "time_series",
-          "rawQuery": true,
-          "rawSql": "SELECT\n  time,\n  'Free' AS metric,\n  value\nFROM history_float\nWHERE path = '$device/MemoryFree'\n  AND $__timeFilter(\"time\")\nORDER BY time",
-          "refId": "B"
         }
       ],
-      "title": "Memory",
+      "title": "Feedrate",
       "type": "timeseries"
     },
     {
@@ -547,7 +567,7 @@
         "type": "grafana-postgresql-datasource",
         "uid": "timescaledb"
       },
-      "description": "Used and available disk space - $device/DiskUsed and $device/DiskAvailable.",
+      "description": "ROTARY_VELOCITY/ACTUAL for each spindle.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -561,7 +581,7 @@
             "axisPlacement": "auto",
             "barAlignment": 0,
             "drawStyle": "line",
-            "fillOpacity": 25,
+            "fillOpacity": 10,
             "gradientMode": "none",
             "hideFrom": {
               "legend": false,
@@ -579,7 +599,7 @@
             "spanNulls": true,
             "stacking": {
               "group": "A",
-              "mode": "normal"
+              "mode": "none"
             },
             "thresholdsStyle": {
               "mode": "off"
@@ -595,17 +615,17 @@
               }
             ]
           },
-          "unit": "bytes",
-          "displayName": "${__field.labels.metric}",
+          "unit": "rotrpm",
+          "displayName": "${__field.labels.spindle}",
           "min": 0
         },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
-        "w": 8,
-        "x": 16,
-        "y": 4
+        "w": 12,
+        "x": 12,
+        "y": 14
       },
       "id": 4,
       "options": {
@@ -633,30 +653,32 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\n  time,\n  'Used' AS metric,\n  value\nFROM history_float\nWHERE path = '$device/DiskUsed'\n  AND $__timeFilter(\"time\")\nORDER BY time",
+          "rawSql": "-- ROTARY_VELOCITY / ACTUAL, in rev/min.\nSELECT\n  time,\n  coalesce('Spindle ' || substring(path, 'Axes/\\w+\\[(\\w+)\\]'), 'Spindle') AS spindle,\n  value                                                                      AS speed\nFROM history_float\nWHERE path LIKE '$device/%RotaryVelocity%'\n  AND path NOT LIKE '%Override%'\n  AND $__timeFilter(\"time\")\nORDER BY time",
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "timescaledb"
-          },
-          "editorMode": "code",
-          "format": "time_series",
-          "rawQuery": true,
-          "rawSql": "SELECT\n  time,\n  'Available' AS metric,\n  value\nFROM history_float\nWHERE path = '$device/DiskAvailable'\n  AND $__timeFilter(\"time\")\nORDER BY time",
-          "refId": "B"
         }
       ],
-      "title": "Disk",
+      "title": "Spindle Speed",
       "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      },
+      "id": 11,
+      "panels": [],
+      "title": "Load & Temperature",
+      "type": "row"
     },
     {
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "timescaledb"
       },
-      "description": "Percent of the filesystem in use - $device/DiskUse. This is the one to watch: the relay stops writing history when it fills up.",
+      "description": "LOAD dataitems under Axes, in percent of rated load.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -670,7 +692,7 @@
             "axisPlacement": "auto",
             "barAlignment": 0,
             "drawStyle": "line",
-            "fillOpacity": 20,
+            "fillOpacity": 10,
             "gradientMode": "none",
             "hideFrom": {
               "legend": false,
@@ -705,52 +727,16 @@
             ]
           },
           "unit": "percent",
-          "displayName": "${__field.labels.metric}",
-          "min": 0,
-          "max": 100
+          "displayName": "${__field.labels.axis}",
+          "min": 0
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byType",
-              "options": "number"
-            },
-            "properties": [
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "green",
-                      "value": null
-                    },
-                    {
-                      "color": "yellow",
-                      "value": 80
-                    },
-                    {
-                      "color": "red",
-                      "value": 90
-                    }
-                  ]
-                }
-              },
-              {
-                "id": "custom.thresholdsStyle",
-                "value": {
-                  "mode": "dashed"
-                }
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "gridPos": {
-        "h": 7,
+        "h": 8,
         "w": 12,
         "x": 0,
-        "y": 12
+        "y": 23
       },
       "id": 5,
       "options": {
@@ -778,11 +764,11 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\n  time,\n  'Disk use' AS metric,\n  value\nFROM history_float\nWHERE path = '$device/DiskUse'\n  AND $__timeFilter(\"time\")\nORDER BY time",
+          "rawSql": "-- axis and spindle load, in percent.\n-- where two LOAD dataitems share a component the relay disambiguates the path\n-- with the dataitem id, eg Axes/Rotary[C]/Load[Sload] - that is the spindle.\nSELECT\n  time,\n  CASE\n    WHEN path LIKE '%Load[Sload]' THEN 'Spindle'\n    ELSE coalesce(substring(path, 'Load\\[(\\w+)\\]$'),\n                  substring(path, 'Axes/\\w+\\[(\\w+)\\]/Load$'),\n                  path)\n  END   AS axis,\n  value AS load\nFROM history_float\nWHERE path LIKE '$device/Axes/%/Load%'\n  AND $__timeFilter(\"time\")\nORDER BY time",
           "refId": "A"
         }
       ],
-      "title": "Disk Use",
+      "title": "Axis & Spindle Load",
       "type": "timeseries"
     },
     {
@@ -790,7 +776,7 @@
         "type": "grafana-postgresql-datasource",
         "uid": "timescaledb"
       },
-      "description": "$device/Temperature. Not readable on every platform - an empty panel here is normal on Windows and in some containers.",
+      "description": "Coolant tank temperature plus each servo/spindle motor temperature.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -839,15 +825,15 @@
             ]
           },
           "unit": "celsius",
-          "displayName": "${__field.labels.metric}"
+          "displayName": "${__field.labels.sensor}"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
+        "h": 8,
         "w": 12,
         "x": 12,
-        "y": 12
+        "y": 23
       },
       "id": 6,
       "options": {
@@ -875,11 +861,22 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\n  time,\n  'CPU temp' AS metric,\n  value\nFROM history_float\nWHERE path = '$device/Temperature'\n  AND $__timeFilter(\"time\")\nORDER BY time",
+          "rawSql": "-- coolant tank temperature.\nSELECT\n  time,\n  'Coolant' AS sensor,\n  value     AS temperature\nFROM history_float\nWHERE path = '$device/Systems/Coolant/Temperature'\n  AND $__timeFilter(\"time\")\nORDER BY time",
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescaledb"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "-- servo / spindle motor temperatures, one series per axis.\nSELECT\n  time,\n  coalesce(substring(path, 'Axes/\\w+\\[(\\w+)\\]'), 'Axes') || ' motor' AS sensor,\n  value                                                                 AS temperature\nFROM history_float\nWHERE path LIKE '$device/Axes/%Temperature'\n  AND $__timeFilter(\"time\")\nORDER BY time",
+          "refId": "B"
         }
       ],
-      "title": "CPU Temperature",
+      "title": "Coolant & Motor Temperature",
       "type": "timeseries"
     },
     {
@@ -888,11 +885,11 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 19
+        "y": 31
       },
-      "id": 10,
+      "id": 12,
       "panels": [],
-      "title": "About",
+      "title": "Recent Activity",
       "type": "row"
     },
     {
@@ -900,28 +897,108 @@
         "type": "grafana-postgresql-datasource",
         "uid": "timescaledb"
       },
+      "description": "Every observation the relay stored for this machine in the selected time range, newest first.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": false,
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Time"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 190
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Item"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 340
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Units"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 140
+              }
+            ]
+          }
+        ]
+      },
       "gridPos": {
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 20
+        "y": 32
       },
       "id": 7,
       "options": {
-        "code": {
-          "language": "plaintext",
-          "showLineNumbers": false,
-          "showMiniMap": false
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
         },
-        "content": "### Where this data comes from\n\nThe **host** device is the box Ladder99 itself runs on. The adapter's `host`\ndriver polls the OS every few seconds (`services/adapter/src/schemas/host/`),\nships the values to the MTConnect agent over SHDR, and the relay writes them to\nTimescaleDB. Grafana reads them back through the `public.history_float` view.\n\n| Panel | Path | Units |\n| --- | --- | --- |\n| CPU | `$device/CpuTotal` | percent |\n| Memory | `$device/MemoryUsed`, `$device/MemoryFree` | bytes |\n| Disk | `$device/DiskUsed`, `$device/DiskAvailable` | bytes |\n| Disk Use | `$device/DiskUse` | percent |\n| CPU Temperature | `$device/Temperature` | celsius |\n\n`Temperature` comes from `systeminformation`'s `cpuTemperature.main`, which is\nnot readable on every platform - an empty panel there is normal on Windows and\nin some containers, and is not a pipeline fault.\n\nEvery panel on this dashboard is a native React panel (`timeseries`, `stat`,\n`text`). Nothing here needs AngularJS, which Grafana disabled by default in v11\nand removed in v12.",
-        "mode": "markdown"
+        "showHeader": true,
+        "sortBy": []
       },
-      "title": "Help",
-      "transparent": false,
-      "type": "text"
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescaledb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "-- raw feed of everything this machine reported in range.\nSELECT\n  time                                 AS \"Time\",\n  substring(path, '^$device/(.*)')     AS \"Item\",\n  value                                AS \"Value\",\n  lower(units)                         AS \"Units\"\nFROM history_all\nWHERE device = '$device'\n  AND $__timeFilter(\"time\")\nORDER BY time DESC\nLIMIT 500",
+          "refId": "A"
+        }
+      ],
+      "title": "Recent Changes",
+      "type": "table"
     }
   ],
-  "refresh": "30s",
+  "refresh": "10s",
   "schemaVersion": 39,
   "tags": [
     "grace"
@@ -931,22 +1008,22 @@
       {
         "current": {
           "selected": false,
-          "text": "Main/Host",
-          "value": "Main/Host"
+          "text": "Mazak5701/M12345",
+          "value": "Mazak5701/M12345"
         },
         "datasource": {
           "type": "grafana-postgresql-datasource",
           "uid": "timescaledb"
         },
-        "definition": "select path from devices where path like '%/Host' order by path",
-        "description": "The box Ladder99 itself is running on",
+        "definition": "select path from devices where path not like '%/Host' order by path",
+        "description": "Machine to inspect - agentAlias/deviceAlias, eg Mazak5701/M12345",
         "hide": 0,
         "includeAll": false,
-        "label": "Host",
+        "label": "Machine",
         "multi": false,
         "name": "device",
         "options": [],
-        "query": "select path from devices where path like '%/Host' order by path",
+        "query": "select path from devices where path not like '%/Host' order by path",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
@@ -956,7 +1033,7 @@
     ]
   },
   "time": {
-    "from": "now-3h",
+    "from": "now-6h",
     "to": "now"
   },
   "timepicker": {
@@ -973,8 +1050,8 @@
     ]
   },
   "timezone": "browser",
-  "title": "Host",
-  "uid": "host",
+  "title": "Machine",
+  "uid": "machine",
   "version": 1,
   "weekStart": ""
 }

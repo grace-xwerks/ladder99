@@ -1,0 +1,40 @@
+# see https://grafana.com/docs/grafana/latest/administration/provisioning/#dashboards
+
+# two providers, because there are two sources of dashboards and they have
+# different owners:
+#
+#   Ladder99 - the repo's shared dashboards, same for every setup.
+#              services/docker-compose.yaml mounts ladder99/volumes/grafana/dashboards
+#              at /etc/dashboards.
+#
+#   Client   - this setup's own dashboards, ours to change.
+#              volumes/grafana/etc mounts at /etc/grafana, so they live at
+#              /etc/grafana/dashboards - ie setups/grace/volumes/grafana/etc/dashboards/.
+#              grafana.ini's default_home_dashboard_path points into that folder.
+#
+# note: allowUiUpdates lets you edit these in the browser, but grafana will
+# re-read the files on restart. save changes back to the json files in git or
+# they are gone on the next `l99 restart`.
+
+apiVersion: 1
+
+providers:
+  - name: Ladder99
+    folder: Ladder99
+    type: file
+    allowUiUpdates: true
+    options:
+      # <string> path to dashboard files. Required when using 'file' type.
+      # use this for global dashboards - maps to ladder99/volumes/grafana/dashboards
+      path: /etc/dashboards
+      # foldersFromFilesStructure: true
+
+  - name: Client
+    folder: Grace
+    type: file
+    allowUiUpdates: true
+    options:
+      # <string> path to dashboard files. Required when using 'file' type.
+      # use this for local dashboards - maps to setups/grace/volumes/grafana/etc/dashboards
+      path: /etc/grafana/dashboards
+      # foldersFromFilesStructure: true
