@@ -1,0 +1,39 @@
+<!-- brother speedio module -->
+<!-- dataitem ids are postfixed with $deviceNum, names are prefixed with $deviceId. -->
+<!-- keep in step with outputs.yaml - an output with no dataitem here is dropped -->
+<!-- by the agent, and a dataitem with no output reads UNAVAILABLE forever. -->
+
+<Module>
+  <DataItems>
+    <DataItem id="avail" name="availability" category="EVENT" type="AVAILABILITY"/>
+    <DataItem id="cond" name="system" category="CONDITION" type="SYSTEM"/>
+
+    <!-- display / programming mode: NC or CONVERSATION -->
+    <DataItem id="language" name="program-mode" category="EVENT" type="VARIABLE" subType="x:LANGUAGE"/>
+
+    <!-- modal groups off PDSP. these are brother group codes, not G numbers, -->
+    <!-- so they ride as VARIABLE rather than being forced into a standard type -->
+    <!-- that would imply a vocabulary they do not use. -->
+    <DataItem id="gmot" name="modal-motion" category="EVENT" type="VARIABLE" subType="x:G_MOTION"/>
+    <DataItem id="gwof" name="modal-work-offset" category="EVENT" type="VARIABLE" subType="x:G_WORK_OFFSET"/>
+    <DataItem id="gcan" name="modal-canned-cycle" category="EVENT" type="VARIABLE" subType="x:G_CANNED"/>
+    <DataItem id="gfeed" name="modal-feed-mode" category="EVENT" type="VARIABLE" subType="x:G_FEED_MODE"/>
+    <DataItem id="mspin" name="modal-spindle" category="EVENT" type="VARIABLE" subType="x:M_SPINDLE"/>
+    <DataItem id="mcool" name="modal-coolant" category="EVENT" type="VARIABLE" subType="x:M_COOLANT"/>
+
+    <!-- axis / status block. commented out in step with inputs.yaml and -->
+    <!-- outputs.yaml - enable all three together once the map is probed. -->
+    <!--
+    <DataItem id="feed" name="feedrate" category="SAMPLE" type="PATH_FEEDRATE" units="MILLIMETER/SECOND"/>
+    <DataItem id="fovr" name="feedrate-override" category="EVENT" type="PATH_FEEDRATE_OVERRIDE" units="PERCENT"/>
+    <DataItem id="rovr" name="rapid-override" category="EVENT" type="PATH_FEEDRATE_OVERRIDE" subType="RAPID" units="PERCENT"/>
+    <DataItem id="tnext" name="tool-next" category="EVENT" type="TOOL_NUMBER"/>
+    <DataItem id="pot" name="tool-pot" category="EVENT" type="VARIABLE" subType="x:POT"/>
+    <DataItem id="absx" name="position-x" category="SAMPLE" type="POSITION" subType="ACTUAL" units="MILLIMETER"/>
+    <DataItem id="absy" name="position-y" category="SAMPLE" type="POSITION" subType="ACTUAL" units="MILLIMETER"/>
+    <DataItem id="absz" name="position-z" category="SAMPLE" type="POSITION" subType="ACTUAL" units="MILLIMETER"/>
+    <DataItem id="absb" name="position-b" category="SAMPLE" type="ANGLE" subType="ACTUAL" units="DEGREE"/>
+    <DataItem id="absc" name="position-c" category="SAMPLE" type="ANGLE" subType="ACTUAL" units="DEGREE"/>
+    -->
+  </DataItems>
+</Module>
