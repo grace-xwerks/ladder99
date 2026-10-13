@@ -1,0 +1,43 @@
+# grace-xwerks line-ending standard (same rule as tapeworm/.gitattributes).
+# Text is stored and checked out as LF everywhere -- the working trees already
+# are -- so behaviour no longer depends on each machine's core.autocrlf.
+* text=auto eol=lf
+
+# Windows-only launchers are the one place CRLF is correct.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Machine-facing files are byte-exact. Proven programs, test fixtures and
+# vendor-forked posts are committed exactly as the control / Autodesk wrote
+# them (some with CRLF or mixed endings); git must never rewrite a byte.
+*.nc   -text diff
+*.cnc  -text diff
+*.eia  -text diff
+*.tap  -text diff
+*.ngc  -text diff
+*.min  -text diff
+*.mpf  -text diff
+*.spf  -text diff
+*.pim  -text diff
+*.cps  -text diff
+*.csv  -text diff
+
+# Never touch binaries.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.bmp  binary
+*.ico  binary
+*.pdf  binary
+*.xlsx binary
+*.docx binary
+*.zip  binary
+*.csvz binary
+*.sqlite binary
+*.db   binary
+*.stl  binary
+*.step binary
+*.stp  binary
+*.f3d  binary
+*.f3z  binary
