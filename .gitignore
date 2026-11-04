@@ -31,3 +31,8 @@ setups/*
 !setups/grace/
 
 .l99_setup
+
+# Claude Code: track shared project settings; keep per-machine overrides
+# and agent worktrees out.
+.claude/settings.local.json
+.claude/worktrees/
